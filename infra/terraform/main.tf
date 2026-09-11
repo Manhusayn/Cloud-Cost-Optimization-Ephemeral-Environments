@@ -33,11 +33,15 @@ module "eks" {
 
   addons = {
     coredns = {}
+
     kube-proxy = {}
+
     vpc-cni = {
       before_compute = true
     }
+
     eks-pod-identity-agent = {}
+
     aws-ebs-csi-driver = {}
   }
 
@@ -87,11 +91,13 @@ resource "aws_ecr_lifecycle_policy" "app" {
       {
         rulePriority = 1
         description  = "Keep the latest 20 images"
+
         selection = {
           tagStatus   = "any"
           countType   = "imageCountMoreThan"
           countNumber = 20
         }
+
         action = {
           type = "expire"
         }
