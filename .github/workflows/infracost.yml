@@ -1,0 +1,93 @@
+name: Infracost - FinOps Guard
+
+on:
+  pull_request:
+    paths:
+      - "infra/terraform/**"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  COST_THRESHOLD_USD: "100"
+
+jobs:
+  cost:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: infra/terraform
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+
+      - name: Terraform Init
+        run: terraform init -backend=false
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+
+      - name: Setup Infracost
+        uses: infracost/actions/setup@v3
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: Convert Terraform plan to JSON
+        run: terraform show -json tfplan > tfplan.json
+
+      - name: Generate Infracost breakdown
+        run: |
+          infracost breakdown \
+            --path tfplan.json \
+            --format json \
+            --out-file infracost.json
+
+      - name: Post cost estimate
+        run: |
+          infracost output \
+            --path infracost.json \
+            --format github-comment \
+            --out-file infracost-comment.md
+
+          echo "### 💰 Infracost estimate" >> "$GITHUB_STEP_SUMMARY"
+          cat infracost-comment.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment on pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --body-file infracost-comment.md
+
+      - name: Enforce cost guard
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from decimal import Decimal
+
+          data = json.load(open("infracost.json"))
+          threshold = Decimal(os.environ["COST_THRESHOLD_USD"])
+
+          projects = data.get("projects", [])
+          total = sum(
+              Decimal(str(p.get("breakdown", {}).get("totalMonthlyCost", 0) or 0))
+              for p in projects
+          )
+
+          print(f"Estimated monthly cost: ${total:.2f}")
+          print(f"Configured threshold: ${threshold:.2f}")
+
+          if total > threshold:
+              raise SystemExit(
+                  f"Cost guard failed: ${total:.2f} exceeds ${threshold:.2f}"
+              )
+          PY

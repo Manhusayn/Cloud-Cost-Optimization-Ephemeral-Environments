@@ -1,0 +1,1 @@
+d78293fe87489b60aefd94db61765fba071fb664a81c810ce8efe215c879818a  cloud-cost-optimization-ephemeral-environments.zip

@@ -1,0 +1,18 @@
+{
+  "project": "cloud-cost-optimization-ephemeral-environments",
+  "generated": "2026-09-11",
+  "stack": [
+    "AWS",
+    "EKS",
+    "ECR",
+    "Terraform",
+    "Infracost",
+    "KEDA",
+    "OpenCost",
+    "GitHub Actions"
+  ],
+  "terraform_eks_module": "21.24.2",
+  "terraform_vpc_module": "6.6.1",
+  "keda": "latest Helm chart (bootstrap script)",
+  "opencost": "latest Helm chart (bootstrap script)"
+}

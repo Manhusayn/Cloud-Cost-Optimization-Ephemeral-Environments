@@ -1,0 +1,17 @@
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.*
+*.tfvars
+*.tfvars.json
+crash.log
+crash.*.log
+.DS_Store
+.env
+.env.*
+__pycache__/
+*.py[cod]
+.pytest_cache/
+dist/
+build/
+*.egg-info/

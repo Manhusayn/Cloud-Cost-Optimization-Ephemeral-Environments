@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: preview-service
+  namespace: ${NAMESPACE}
+  labels:
+    app: preview-service
+    preview-pr: "${PR_NUMBER}"
+    managed-by: github-actions
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: preview-service
+  template:
+    metadata:
+      labels:
+        app: preview-service
+        preview-pr: "${PR_NUMBER}"
+    spec:
+      containers:
+        - name: app
+          image: ${IMAGE_URI}
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: ENVIRONMENT
+              value: "preview-pr-${PR_NUMBER}"
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10

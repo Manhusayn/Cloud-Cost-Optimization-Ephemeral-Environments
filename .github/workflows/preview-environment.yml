@@ -1,0 +1,93 @@
+name: Ephemeral Preview Environment
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+env:
+  AWS_REGION: ap-south-1
+  ECR_REPOSITORY: finops-ephemeral/dev/preview-service
+
+jobs:
+  cleanup:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+
+      - name: Configure kubectl
+        run: |
+          aws eks update-kubeconfig \
+            --region "${AWS_REGION}" \
+            --name finops-ephemeral-dev
+
+      - name: Destroy preview namespace
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: ./scripts/destroy-preview.sh
+
+  deploy:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push preview image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          IMAGE_URI="${REGISTRY}/${ECR_REPOSITORY}:pr-${PR_NUMBER}-${GITHUB_SHA::12}"
+          docker build -t "${IMAGE_URI}" app/
+          docker push "${IMAGE_URI}"
+          echo "IMAGE_URI=${IMAGE_URI}" >> "${GITHUB_ENV}"
+
+      - name: Configure kubectl
+        run: |
+          aws eks update-kubeconfig \
+            --region "${AWS_REGION}" \
+            --name finops-ephemeral-dev
+
+      - name: Deploy ephemeral environment
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: ./scripts/deploy-preview.sh
+
+      - name: Publish environment details
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            echo "### 🚀 Preview Environment"
+            echo
+            echo "- Namespace: \`preview-pr-${PR_NUMBER}\`"
+            echo "- Image: \`${IMAGE_URI}\`"
+            echo "- Service: \`preview-service\`"
+            echo
+            echo "The namespace is automatically deleted when the PR closes."
+          } >> "${GITHUB_STEP_SUMMARY}"

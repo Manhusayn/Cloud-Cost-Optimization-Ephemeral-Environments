@@ -1,0 +1,5 @@
+# Generated automatically by:
+# terraform -chdir=infra/terraform init
+#
+# Do not copy this file as the real lock file.
+# Terraform will generate a platform-specific lock file for your machine.
